@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ba5574b2-b262-464f-ae45-789731d3069f" name="Changes" comment="generate random password">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="ba5574b2-b262-464f-ae45-789731d3069f" name="Changes" comment="generate random password" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -30,7 +28,7 @@
 }]]></component>
   <component name="GithubPullRequestsUISettings"><![CDATA[{
   "selectedUrlAndAccountId": {
-    "url": "https://github.com/naodhu/python.git",
+    "url": "https://github.com/naodhu/Passwor-Manager.git",
     "accountId": "fb15893a-131d-4e3b-9436-a90e0f642a1d"
   }
 }]]></component>
