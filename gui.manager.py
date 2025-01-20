@@ -5,6 +5,7 @@ import string
 import sys
 from hashlib import sha256
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,10 +19,9 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
-    QInputDialog,
-    QHeaderView,
 )
 from cryptography.fernet import Fernet
+
 
 # File paths
 PASSWORD_FILE = "passwords.json"
@@ -31,34 +31,28 @@ KEY_FILE = "key.bin"
 
 # Helper Functions
 def hash_password(password: str) -> str:
-    """Hashes a password using SHA-256."""
     return sha256(password.encode()).hexdigest()
 
 
 def save_master_password(password: str):
-    """Saves the master password hash."""
     with open(HASH_FILE, "w") as file:
         file.write(hash_password(password))
 
 
 def verify_master_password(password: str) -> bool:
-    """Verifies the master password."""
     if not os.path.exists(HASH_FILE):
         return False
     with open(HASH_FILE, "r") as file:
         stored_hash = file.read()
-
     return hash_password(password) == stored_hash
 
 
 def generate_password(length=12) -> str:
-    """Generates a strong random password."""
     characters = string.ascii_letters + string.digits + string.punctuation
     return "".join(random.choice(characters) for _ in range(length))
 
 
 def encrypt_file(key: bytes, filename: str):
-    """Encrypts a file using the provided key."""
     with open(filename, "rb") as file:
         data = file.read()
     encrypted_data = Fernet(key).encrypt(data)
@@ -67,7 +61,6 @@ def encrypt_file(key: bytes, filename: str):
 
 
 def decrypt_file(key: bytes, filename: str):
-    """Decrypts a file using the provided key."""
     with open(filename, "rb") as file:
         encrypted_data = file.read()
     decrypted_data = Fernet(key).decrypt(encrypted_data)
@@ -76,7 +69,6 @@ def decrypt_file(key: bytes, filename: str):
 
 
 def load_passwords(key: bytes):
-    """Loads passwords from the encrypted file."""
     if not os.path.exists(PASSWORD_FILE):
         return {}
     decrypt_file(key, PASSWORD_FILE)
@@ -87,12 +79,12 @@ def load_passwords(key: bytes):
 
 
 def save_passwords(passwords: dict, key: bytes):
-    """Saves passwords to the encrypted file."""
     with open(PASSWORD_FILE, "w") as file:
         json.dump(passwords, file, indent=2)
     encrypt_file(key, PASSWORD_FILE)
 
 
+# GUI Classes
 class PasswordManager(QMainWindow):
     def __init__(self, key: bytes):
         super().__init__()
@@ -101,7 +93,12 @@ class PasswordManager(QMainWindow):
         self.setWindowIcon(QIcon("icons/app_icon.png"))
         self.key = key
         self.passwords = load_passwords(self.key)
-        self.show_passwords = False  # State to track password visibility
+
+        # Auto-lock timer
+        self.lock_timer = QTimer()
+        self.lock_timer.setInterval(300000)  # 5 minutes
+        self.lock_timer.timeout.connect(self.lock_application)
+        self.lock_timer.start()
 
         # Main Layout
         main_layout = QVBoxLayout()
@@ -110,9 +107,8 @@ class PasswordManager(QMainWindow):
         search_layout = QHBoxLayout()
         search_label = QLabel("Search:")
         self.search_input = QLineEdit()
+        self.search_input.setToolTip("Enter a search term (e.g., 'Email', 'Facebook').")
         search_button = QPushButton("Search")
-        search_button.setIcon(QIcon("icons/search.png"))
-        search_button.setToolTip("Search for saved passwords.")
         search_button.clicked.connect(self.search_passwords)
         search_layout.addWidget(search_label)
         search_layout.addWidget(self.search_input)
@@ -137,57 +133,41 @@ class PasswordManager(QMainWindow):
 
         generate_button = QPushButton("Generate Password")
         generate_button.setIcon(QIcon("icons/generate.png"))
-        generate_button.setToolTip("Generate a strong random password.")
         generate_button.clicked.connect(self.generate_password)
+        generate_button.setToolTip("Click to generate a strong random password.")
         add_layout.addWidget(generate_button)
 
         add_button = QPushButton("Add Password")
         add_button.setIcon(QIcon("icons/add.png"))
-        add_button.setToolTip("Add the entered password to the list.")
         add_button.clicked.connect(self.add_password)
+        add_button.setToolTip("Click to save the entered password.")
         add_layout.addWidget(add_button)
+
+        # Center-align buttons
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(generate_button)
+        button_layout.addWidget(add_button)
+        add_layout.addLayout(button_layout)
 
         main_layout.addLayout(add_layout)
 
         # Password Table
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(
-            ["Category", "Service", "Account", "Password", "Actions"]
+            ["Category", "Service", "Account", "Password"]
         )
+        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet(
+            "QTableWidget { alternate-background-color: #2c2c2c; }"
+        )
         self.update_table(self.passwords)
         main_layout.addWidget(self.table)
 
-        # Adjust column widths
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeToContents
-        )  # Category
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeToContents
-        )  # Service
-        self.table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeToContents
-        )  # Account
-        self.table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.Stretch
-        )  # Password
-        self.table.horizontalHeader().setSectionResizeMode(
-            4, QHeaderView.ResizeToContents
-        )  # Actions
-
-        # Show Passwords Toggle
-        toggle_button = QPushButton("Show Passwords")
-        toggle_button.setCheckable(True)
-        toggle_button.setIcon(QIcon("icons/show.png"))
-        toggle_button.setToolTip("Click to toggle password visibility.")
-        toggle_button.toggled.connect(self.toggle_password_visibility)
-        main_layout.addWidget(toggle_button)
-
         # Exit Button
         exit_button = QPushButton("Exit")
-        exit_button.setIcon(QIcon("icons/exit.png"))
-        exit_button.setToolTip("Close the application.")
+        exit_button.setToolTip("Click to exit the application.")
         exit_button.clicked.connect(self.close)
         main_layout.addWidget(exit_button)
 
@@ -196,27 +176,25 @@ class PasswordManager(QMainWindow):
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
 
-    def toggle_password_visibility(self, checked):
-        """Toggle password visibility in the table."""
-        self.show_passwords = checked
-        self.update_table(self.passwords)
-        sender = self.sender()  # Get the button that triggered this
-        sender.setText("Hide Passwords" if checked else "Show Passwords")
+    def lock_application(self):
+        QMessageBox.warning(
+            self, "Session Timeout", "Session timed out. Please log in again."
+        )
+
+        self.close()
 
     def search_passwords(self):
-        """Search and highlight matching passwords."""
         query = self.search_input.text().lower()
-        for row in range(self.table.rowCount()):
-            match_found = False
-            for col in range(self.table.columnCount() - 1):  # Exclude actions column
-                item = self.table.item(row, col)
-                if item and query in item.text().lower():
-                    match_found = True
-                    break
-            self.table.setRowHidden(row, not match_found)
+        filtered = {}
+        for category, services in self.passwords.items():
+            for service, details in services.items():
+                if query in category.lower() or query in service.lower():
+                    if category not in filtered:
+                        filtered[category] = {}
+                    filtered[category][service] = details
+        self.update_table(filtered)
 
     def update_table(self, passwords):
-        """Update the table to display passwords (masked or visible)."""
         self.table.setRowCount(0)
         for category, services in passwords.items():
             for service, details in services.items():
@@ -225,24 +203,7 @@ class PasswordManager(QMainWindow):
                 self.table.setItem(row, 0, QTableWidgetItem(category))
                 self.table.setItem(row, 1, QTableWidgetItem(service))
                 self.table.setItem(row, 2, QTableWidgetItem(details["account"]))
-
-                # Show password or mask it
-                password = details["password"] if self.show_passwords else "*****"
-                self.table.setItem(row, 3, QTableWidgetItem(password))
-
-                # Add copy button
-                copy_button = QPushButton("Copy")
-                copy_button.setToolTip("Copy the password to clipboard.")
-                copy_button.clicked.connect(
-                    lambda _, pw=details["password"]: self.copy_to_clipboard(pw)
-                )
-                self.table.setCellWidget(row, 4, copy_button)
-
-    def copy_to_clipboard(self, text):
-        """Copy text to the clipboard."""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-        QMessageBox.information(self, "Copied", "Password copied to clipboard.")
+                self.table.setItem(row, 3, QTableWidgetItem(details["password"]))
 
     def generate_password(self):
         password = generate_password()
@@ -272,9 +233,8 @@ class PasswordManager(QMainWindow):
         self.password_input.clear()
 
 
+# Main Function
 def main():
-    app = QApplication(sys.argv)
-
     if not os.path.exists(KEY_FILE):
         key = Fernet.generate_key()
         with open(KEY_FILE, "wb") as file:
@@ -283,42 +243,18 @@ def main():
         with open(KEY_FILE, "rb") as file:
             key = file.read()
 
-    if not os.path.exists(HASH_FILE):
-        password, ok = QInputDialog.getText(
-            None,
-            "Set Master Password",
-            "Enter a new master password:",
-            QLineEdit.Password,
-        )
-        if ok and password.strip():
-            save_master_password(password.strip())
-            QMessageBox.information(None, "Success", "Master password has been set.")
-        else:
-            QMessageBox.warning(
-                None, "Input Error", "Master password cannot be empty. Exiting."
-            )
-            sys.exit(1)
+    app = QApplication(sys.argv)
 
-    verified = False
-    while not verified:
-        password, ok = QInputDialog.getText(
-            None,
-            "Enter Master Password",
-            "Enter your master password to unlock the application:",
-            QLineEdit.Password,
+    # Apply Material Dark Style
+    with open("assets/themes/MaterialDark.qss", "r") as style_file:
+        app.setStyleSheet(style_file.read())
+
+    if not os.path.exists(HASH_FILE):
+        master_password, ok = QLineEdit.getText(
+            None, "Set Master Password", "Enter a new master password:"
         )
-        if ok and password.strip():
-            if verify_master_password(password.strip()):
-                verified = True
-            else:
-                QMessageBox.warning(
-                    None, "Authentication Failed", "Incorrect password. Try again."
-                )
-        else:
-            QMessageBox.warning(
-                None, "Input Error", "Master password is required. Exiting."
-            )
-            sys.exit(1)
+        if ok:
+            save_master_password(master_password)
 
     window = PasswordManager(key)
     window.show()
