@@ -25,6 +25,12 @@ def generate_password(length= 12):
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for _ in range(length))
 
+# Encrypt data using a key
+def encrypt_data(key, data):
+    fernet = Fernet(key)
+    return fernet.encrypt(data.encode())
+
+
 
 
 
